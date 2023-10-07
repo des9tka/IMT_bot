@@ -1,8 +1,8 @@
-import sys
 import asyncio
 import logging
-from config import dp, bot
+import sys
 
+from config import dp, bot
 from handlers import router_handler
 
 
