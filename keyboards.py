@@ -1,5 +1,8 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+audio_session = None
+
+
 language_kb = InlineKeyboardMarkup(
     inline_keyboard=[
         [InlineKeyboardButton(text='Ru', callback_data='Ru_language')],
@@ -38,9 +41,34 @@ voice_assistant_kb = InlineKeyboardMarkup(
     ]
 )
 
-close_sure = InlineKeyboardMarkup(
+close_sure_kb = InlineKeyboardMarkup(
     inline_keyboard=[
         [InlineKeyboardButton(text='Yes', callback_data='close_sure_yes')],
         [InlineKeyboardButton(text='No', callback_data='close_sure_no')],
+    ]
+)
+
+volume_master_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text='⬆️', callback_data='volume_master_up')],
+        [InlineKeyboardButton(text='⬇️', callback_data='volume_master_down')],
+        [InlineKeyboardButton(text='Mute/Unmute', callback_data='volume_master_mute_unmute')],
+        [InlineKeyboardButton(text='Max/Min volume', callback_data='volume_master_max_min')],
+    ]
+)
+
+volume_app_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text='⬆️', callback_data=f'app_session_up')],
+        [InlineKeyboardButton(text='⬇️', callback_data=f'app_session_down')],
+        [InlineKeyboardButton(text='Mute/Unmute', callback_data=f'app_session_mute_unmute')],
+        [InlineKeyboardButton(text='Max/Min volume', callback_data=f'app_session_max_min')],
+    ]
+)
+
+volume_choice_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text='Master volume', callback_data='volume_choice_master')],
+        [InlineKeyboardButton(text='App volume', callback_data='volume_choice_app')],
     ]
 )
