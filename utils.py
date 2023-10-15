@@ -16,7 +16,7 @@ from bardapi import Bard
 from comtypes import CLSCTX_ALL
 from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume, ISimpleAudioVolume
 
-from config import BARD_TOKEN
+from config import BARD_TOKEN, OPEN_WEATHER_TOKEN
 
 devices = AudioUtilities.GetSpeakers()
 interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
@@ -161,7 +161,7 @@ def get_answer(query):
     return Bard(token=BARD_TOKEN).get_answer(query)['content']
 
 
-def get_answer2(query, image=None):
+def get_image_answer(query, image=None):
     """Returns the answer from Bard."""
 
     response = requests.post(
@@ -174,6 +174,42 @@ def get_answer2(query, image=None):
 
     return response.json()["content"]
 
+
+def get_weather(city):
+    response = requests.get(f'http://api.openweathermap.org/geo/1.0/direct?q={city}&limit=1&appid={OPEN_WEATHER_TOKEN}')
+    try:
+        weather = response.json()[0]
+    except (Exception,):
+        return 'Error'
+    lon = weather['lon']
+    lat = weather['lat']
+
+    response = requests.get(f'https://api.openweathermap.org/data/2.5/weather?&lat={lat}&lon={lon}&appid={OPEN_WEATHER_TOKEN}&units=metric')
+    weather = response.json()
+
+    res_weather = {
+        'name': weather['name'],
+        'country': weather['sys']['country'],
+        'temp': weather['main']['temp'],
+        'temp_feels': weather['main']['feels_like'],
+        'max_temp': weather['main']['temp_max'],
+        'min_temp': weather['main']['temp_min'],
+        'wind_speed': weather['wind']['speed'],
+        'sunrise': datetime.datetime.fromtimestamp(weather['sys']['sunrise']).strftime('%H:%M'),
+        'sunset': datetime.datetime.fromtimestamp(weather['sys']['sunset']).strftime('%H:%M'),
+        'time_now': datetime.datetime.fromtimestamp(weather['dt']).strftime('%H:%M'),
+        'clouds': weather['clouds']['all'],
+        'description': weather['weather'][0]['description'],
+        'main_weather': weather['weather'][0]['main']
+    }
+
+    try:
+        rain_per_hour = weather['rain']['1h']
+        res_weather['rain_per_hour'] = rain_per_hour
+    except (Exception,):
+        res_weather['rain_per_hour'] = 0
+
+    return res_weather
 
 # def generate_image(prompt, num_image=1, size='512x512', output_format='url'):
 #     """

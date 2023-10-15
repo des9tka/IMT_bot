@@ -13,6 +13,8 @@ OPENAI_TOKEN_ALYA = os.environ.get('OPENAI_TOKEN_ALYA')
 telethon_api_id = os.environ.get('api_id')
 telethon_api_hash = os.environ.get('api_hash')
 ADMIN_ID = os.environ.get('ADMIN_ID')
+TEST_ID = os.environ.get('TEST_ID')
+OPEN_WEATHER_TOKEN = os.environ.get('OPEN_WEATHER_TOKEN')
 
 phone_owner = os.environ.get('phone_owner')
 

@@ -1,41 +1,32 @@
 import codecs
-import io
+import datetime
 import os
 import subprocess
-import tempfile
 import time
 import webbrowser
-import PIL
+from functools import partial
+
 import cv2
-import mss
+import keyboard
 import numpy as np
 import pyautogui
-import langdetect
-import keyboard
-import pyperclip
 import speech_recognition as sr
-import win32api
-import win32con
-from functools import partial
 from PIL import ImageGrab
-from PIL.Image import Image
 from aiogram import types, F, Router
 from aiogram.fsm.context import FSMContext
 from pydub import AudioSegment
+
 import keyboards as kb
 from config import bot
 from filters import AdminFilter
 from state import BotState
 from utils import get_answer, text_to_speach, open_app, close_app, master_volume_up, master_volume_down, master_volume_mute_unmute, master_volume_max_min, sessions_audio_kb, set_master_volume, is_not_empty, \
-    app_volume_up, app_volume_down, app_volume_max_min, app_volume_mute_unmute, get_answer2
+    app_volume_up, app_volume_down, app_volume_max_min, app_volume_mute_unmute, get_weather
 
 router_handler = Router()
 
 language = 'ru-RU'
 voice_assistant = 'off'
-
-image = dict()
-bots = {}
 
 
 @router_handler.message(AdminFilter(), F.video)
@@ -130,29 +121,31 @@ async def query(message: types.Message):
         await message.answer('Nice to meet you, can i /help you?')
 
     elif message.text == '/help':
-        await message.answer('Here some commands to use: '
+        await message.answer('Here some commands to use:'
                              '\n\n'
                              '<-----AI----->'
                              '\n- /ai + prompt (Prompt request to AI).'
                              '\n- /img + prompt (Generate image with AI).'
                              '\n- Voice message (Voice request to AI).'
-                             '\n- Photo message + command + prompt (Commands:\n- /ai + prompt, \n- /resize + "width"x"high".'
+                             '\n- Photo message + command + prompt (Commands:\n• /ai + prompt, \n• /resize + "width"x"high".'
                              '\n- Video (Capturing video by AI).'
                              '\n\n'
                              '<-----Remote Control----->'
                              '\n- /video + name/url (Find video in YouTube).'
                              '\n- /browser + prompt (Search info in browser).'
-                             '\n- /screenshot + optional number quality (Qualities:\n- No number/1 (Screenshot with compression).\n- 2 (Screenshot in stock quality)).'
+                             '\n- /screenshot + optional number quality (Qualities:\n• Nothing/1 (Screenshot with compression).\n• 2 (Screenshot in stock quality)).'
                              '\n- /open + app name (Open an app, should be global available).'
                              '\n- /close + app name (Close an app, should be global available).'
+                             '\n- /key + hot key/keys (Remote keyboard input).'
                              '\n- /volume + optional value (Change value of volume, 0-100).'
                              '\n\n'
                              '<-----Additional----->'
                              '\n- /tech_support + query (Get in touch with our team).'
+                             '\n- /weather + city (Get weather info to your city).'
                              '\n- /help (Watch list of all commands).'
                              '\n- /info (Useful info and F&Q).'
                              '\n\n'
-                             '<-----Settings------>'
+                             '<-----Settings----->'
                              '\n- /sett (All settings).'
                              '\n- /comm_sett (Settings by commands).'
                              '\n- /voice_ass (Switch voice assistant reply mode, default `OFF`).'
@@ -182,6 +175,35 @@ async def query(message: types.Message):
         text = message.text.replace('/send ', '')
         await bot.send_message(chat_id=5714917250, text=text)
 
+    elif '/weather' in message.text:
+        if message.text.replace('/weather', '').replace(' ', '') == '':
+            await message.answer('You should provide a city.')
+        else:
+            city = message.text.replace('/weather', '').replace(' ', '')
+            response = get_weather(city)
+
+            if response == 'Error':
+                await message.answer('Check the name of city and try again.')
+            else:
+                await message.answer(f'-----{datetime.datetime.now().strftime("%m/%d/%Y, %H:%M:%S")}-----'
+                                     '\n'
+                                     f'\nName - {response["name"]}.'
+                                     f'\nCountry - {response["country"]}.'
+                                     '\n'
+                                     f'\nCurrent temperature - {response["temp"]}°.'
+                                     f'\nTemperature feels like - {response["temp_feels"]}°.'
+                                     f'\nMin/Max temperature - {response["min_temp"]}° / {response["max_temp"]}°.'
+                                     '\n'
+                                     f'\nSunrise at - {response["sunrise"]}.'
+                                     f'\nSunset at - {response["sunset"]}.'
+                                     '\n'
+                                     f'\nWind speed - {response["wind_speed"]} per metr.'
+                                     f'\nClouds - {response["clouds"]}%.'
+                                     f'\nMm of rain - {response["rain_per_hour"]} per hour.'
+                                     '\n'
+                                     f'\nAdditional info - {(response["description"]).capitalize()}.'
+                                     )
+
     elif '/tech_support' in message.text:
         if message.text.replace('/tech_support', '').replace(' ', '') == '':
             await message.answer('You should provide a appeal text.')
@@ -205,8 +227,8 @@ async def query(message: types.Message):
 
     elif '/sett' in message.text:
         await message.answer('---SETTINGS---')
-        await message.answer('Language', reply_markup=kb.language_kb)
-        await message.answer(f'Assistant', reply_markup=kb.voice_assistant_kb)
+        await message.answer(f'Language `{language}`', reply_markup=kb.language_kb)
+        await message.answer(f'Assistant `{voice_assistant.upper()}`', reply_markup=kb.voice_assistant_kb)
 
     elif '/ai' in message.text:
         if message.text.replace('/ai', '').replace(' ', '') == '':
@@ -346,7 +368,7 @@ async def query(message: types.Message):
                 volume_value = float(message.text.split(' ')[1])
 
                 if 0 <= volume_value <= 100:
-                    set_master_volume(value=volume_value/100)
+                    set_master_volume(value=volume_value / 100)
                 elif -65.0 <= volume_value < 0:
                     set_master_volume(cast_value=volume_value)
             except (Exception,):
@@ -520,4 +542,3 @@ async def query(callback: types.CallbackQuery, state: FSMContext):
         # for index, image in enumerate(response['images']):
         #     with open(f'{prefix}_{index}.jpg', 'wb') as f:
         #         f.write(b64decode(image))
-
