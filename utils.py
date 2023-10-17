@@ -5,7 +5,6 @@ import time
 from ctypes import cast, POINTER
 
 import gtts
-import pip
 import psutil
 import pyautogui
 import requests
@@ -21,6 +20,11 @@ from config import BARD_TOKEN, OPEN_WEATHER_TOKEN
 devices = AudioUtilities.GetSpeakers()
 interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
 volume = cast(interface, POINTER(IAudioEndpointVolume))
+
+
+def cast_to_message_photo(image_path):
+    image = types.FSInputFile(image_path)
+    return image
 
 
 def sessions_audio_kb():
@@ -210,6 +214,7 @@ def get_weather(city):
         res_weather['rain_per_hour'] = 0
 
     return res_weather
+
 
 # def generate_image(prompt, num_image=1, size='512x512', output_format='url'):
 #     """

@@ -1,4 +1,4 @@
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 
 audio_session = None
 
@@ -72,3 +72,5 @@ volume_choice_kb = InlineKeyboardMarkup(
         [InlineKeyboardButton(text='App volume', callback_data='volume_choice_app')],
     ]
 )
+
+exit_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, keyboard=[[KeyboardButton(text='EXIT')]], one_time_keyboard=True, selective=True)
