@@ -1,0 +1,7 @@
+from .audio_handler import router_audio_handler
+from .callbackquery_handler import router_callback_query_handler
+from .message_handler import router_message_handler
+from .photo_handler import router_photo_handler
+from .sticker_handler import router_sticker_handler
+from .video_handler import router_video_handler
+from .voice_handler import router_voice_handler

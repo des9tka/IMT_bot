@@ -248,6 +248,23 @@ def text_to_speach(text, language='ru-RU'):
     tts = gtts.gTTS(text=text, lang=language[0])
     tts.save("Voice assistant reply.")
 
+
+def convert_video_to_mp3(input_video, output_audio):
+    ffmpeg_cmd = [
+        "ffmpeg",
+        "-i", input_video,
+        "-vn",
+        "-acodec", "libmp3lame",
+        "-ab", "320k",
+        "-ar", "44100",
+        "-y",
+        output_audio
+    ]
+    try:
+        subprocess.run(ffmpeg_cmd, check=True)
+    except subprocess.CalledProcessError as e:
+        raise Exception('Converting failed.')
+
 # def format_answer(answer):
 #     answer = answer.replace('\n', ' ')
 #     answer = answer.replace('*', '')

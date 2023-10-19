@@ -10,102 +10,23 @@ import cv2
 import keyboard
 import numpy as np
 import pyautogui
-import speech_recognition as sr
 from PIL import ImageGrab
 from aiogram import types, F, Router
 from aiogram.fsm.context import FSMContext
-from pydub import AudioSegment
 
 import keyboards as kb
-from state import state_setup
 from config import bot
 from filters import AdminFilter
 from state import BotState
-from utils import get_answer, text_to_speach, open_app, close_app, get_weather, cast_to_message_photo, is_not_empty, set_master_volume
-
+from state import state_setup
+from utils import get_answer, text_to_speach, open_app, close_app, get_weather, cast_to_message_photo, is_not_empty, set_master_volume, convert_video_to_mp3
 
 router_message_handler = Router()
 
 
-@router_message_handler.message(AdminFilter(), F.video)
-async def cpt_video(message: types.Message):
-    await message.answer('Video capturing in development... ')
-
-
-@router_message_handler.message(AdminFilter(), F.audio)
-async def get_audio_id(message: types.Message):
-    await message.answer(message.audio.file_id)
-
-
-@router_message_handler.message(AdminFilter(), F.photo)
-async def image_request(message: types.Message, state: FSMContext):
-
-    try:
-        file = await bot.get_file(message.photo[-1].file_id)
-        await message.bot.download_file(file.file_path, "work_image.jpg")
-        await state.update_data(image=message.photo[-1].file_id)
-
-        await state.update_data(command_name='/photo')
-        await message.answer('Select command for your image: \n- /image_ai + prompt\n- /image_resize + "width"x"high"\n- /image_id')
-
-    except (Exception,):
-        await message.answer('Something gonna wrong, check your input image and try again.')
-        try:
-            await state.update_data(command_name=None)
-            os.remove('work_image.jpg')
-        except (Exception,):
-            print('Details: All clear.')
-
-
-@router_message_handler.message(AdminFilter(), F.voice)
-async def audio_request(message: types.Message, state: FSMContext):
-
-    get_state: BotState = await state.get_data()
-    await state.set_state(BotState)
-
-    try:
-        audio_file = await bot.get_file(message.voice.file_id)
-
-        await bot.download_file(audio_file.file_path, 'message_audio.ogg')
-
-        audio = AudioSegment.from_file('message_audio.ogg', format='ogg')
-        audio.export('message_audio.ogg', format='wav')
-        recognizer = sr.Recognizer()
-
-        with sr.AudioFile('message_audio.ogg') as source:
-            audio_data = recognizer.record(source)
-
-        transcription = recognizer.recognize_google(audio_data, language=get_state.get('language'))
-
-        os.remove('message_audio.ogg')
-
-        await message.reply(f'You: {transcription}')
-        reply = get_answer(transcription)
-        await message.answer(f'AI: {reply}')
-
-        if get_state.get('voice_assistant') == 'on':
-            file = types.FSInputFile('Voice assistant reply.')
-            text_to_speach(reply, get_state.get('language'))
-            await bot.send_audio(chat_id=message.from_user.id, audio=file)
-            os.remove('Voice assistant reply.')
-
-    except (Exception,) as e:
-        await message.answer(f'Something went wrong, check yor input language or input query and try again.\nMore details: {str(e)}')
-
-        try:
-            os.remove('message_audio.ogg')
-            os.remove('Voice assistant reply.')
-        except (Exception,):
-            print('Details: All clear.')
-
-
-@router_message_handler.message(AdminFilter(), F.sticker)
-async def sticker_id(message: types.Message):
-    await message.answer(f'Here is your`s sticker id: {message.sticker.file_id}')
-
-
 @router_message_handler.message(AdminFilter(), F.text)
 async def query(message: types.Message, state: FSMContext):
+    # ------------------------------Tech------------------------------
 
     await state.set_state(BotState)
     get_state: BotState = await state.get_data()
@@ -113,13 +34,17 @@ async def query(message: types.Message, state: FSMContext):
     if not get_state.get('set_up'):
         await state_setup(state)
 
-    if message.text.lower() == 'exit' and get_state.get("command_name") != None:
+    if message.text.lower() == 'exit' and get_state.get("command_name") != 'No_command':
         await message.answer(f'You exited command {get_state.get("command_name")}.')
-        await state.update_data(command_name=None)
         try:
-            os.remove('work_image.jpg')
+            if '/photo' in get_state.get('command_name'):
+                os.remove('work_image.jpg')
+            elif '/video_ai' in get_state.get('command_name'):
+                os.remove('work_video.mp4')
+                os.remove('resized_video.mp4')
         except (Exception,):
             print('Details: All clear.')
+        await state.update_data(command_name='No_command')
 
     if message.text == '/start':
         await message.answer_sticker(sticker='CAACAgIAAxkBAAOpZRf-yoxEiHWx8_ps5yU_67pi3woAAgEBAAJWnb0KIr6fDrjC5jQwBA')
@@ -152,8 +77,8 @@ async def query(message: types.Message, state: FSMContext):
     elif '/generate_img' in message.text:
         await message.answer('Image generation in developing...')
 
-    elif get_state.get('command_name') == '/voice':
-        pass
+    # elif get_state.get('command_name') == '/voice':
+    #     pass
 
     elif get_state.get('command_name') and '/photo' in get_state.get('command_name'):
 
@@ -175,7 +100,7 @@ async def query(message: types.Message, state: FSMContext):
                 await message.answer('Image request to AI in development... ')
 
                 os.remove('work_image.jpg')
-                await state.update_data(command_name=None)
+                await state.update_data(command_name='No_command')
 
         elif message.text.startswith('/image_resize') or '/image_resize' in get_state.get('command_name'):
             size = None
@@ -201,31 +126,94 @@ async def query(message: types.Message, state: FSMContext):
                     try:
                         resized_img = cv2.resize(img, (int(sizes[0]), int(sizes[1])))
                         cv2.imwrite('resized_image.jpg', resized_img)
-                        file = types.FSInputFile('resized_image.jpg')
-                        await message.answer_photo(file, caption='Here is your resized image.')
+                        await message.answer('Choose the quality of image:', reply_markup=kb.image_quality_kb)
 
-                        os.remove('work_image.jpg')
-                        os.remove('resized_image.jpg')
-                        await state.update_data(command_name=None)
                     except (Exception,):
-                        await message.answer('Something went wrong. Check your input size and try again..')
+                        await message.answer('Something went wrong. Check your input size and try again...')
 
         elif message.text.startswith('/image_id'):
             await message.answer(f'Your image id: \n{get_state.get("image")}')
             os.remove('work_image.jpg')
-            await state.update_data(command_name=None)
-            await state.update_data(image=None)
+            await state.update_data(command_name='No_command')
+            await state.update_data(subject=None)
 
-        else:
+        elif not message.text.lower().startswith('exit'):
             await message.answer(f'Unknown command for image.')
 
-    elif get_state.get('command_message') == '/video_capture':
-        # -----In development-----
-        pass
+    elif get_state.get('command_name') and '/video_ai' in get_state.get('command_name'):
+
+        if '/video_caption' in message.text or '/video_caption' in get_state.get('command_name'):
+            await message.answer('Captioning video in developing...')
+
+        elif '/video_mp3' in message.text or message.text.replace('/video_ai', '').replace(' ', '') == '':
+            try:
+                convert_video_to_mp3('work_video.mp4', 'extract_audio.mp3')
+                file = types.FSInputFile('extract_audio.mp3')
+
+                await message.answer_audio(file, caption='Here is your mp3 from video.')
+            except (Exception,):
+                await message.answer('Exacting mp3 was failed. Check the input video and try again...')
+
+            os.remove('work_video.mp4')
+            os.remove('extract_audio.mp3')
+
+        elif '/video_id' in message.text or message.text.replace('/video_id', '').replace(' ', '') == '':
+            await message.answer(f'Your video id: \n{get_state.get("subject")}')
+            os.remove('work_video.mp4')
+            await state.update_data(command_name='No_command')
+            await state.update_data(subject=None)
+
+        elif '/video_resize' in message.text or '/video_resize' in get_state.get('command_name'):
+            sizes = None
+
+            if '/video_resize' in message.text and message.text.replace('/video_resize', '').replace(' ', '') == '':
+                await state.update_data(command_name='/video_ai/video_resize')
+                await message.answer('Provide a size ("width"x"high") for new video:', reply_markup=kb.exit_keyboard)
+
+            elif '/video_resize' in message.text and message.text.replace('/video_resize', '').replace(' ', '') != '':
+                sizes = message.text.replace('/video_resize', '').replace(' ', '')
+
+            elif get_state.get('command_name') == '/video_ai/video_resize' and not message.text.lower().startswith('exit'):
+                sizes = message.text
+
+            elif not message.text.lower().startswith('exit'):
+                await message.answer(f'Unknown command for image.')
+
+            if sizes:
+                try:
+                    sizes = list(filter(is_not_empty, sizes.split('x')))
+
+                    if len(sizes) == 1:
+                        sizes = list(filter(is_not_empty, sizes.split('х')))
+
+                    cap = cv2.VideoCapture('work_video.mp4')
+                    codec = cv2.VideoWriter_fourcc(*"mp4v")
+
+                    writer = cv2.VideoWriter('resized_video.mp4', codec, 25, (int(sizes[0]), int(sizes[1])))
+
+                    while True:
+
+                        ret, frame = cap.read()
+                        if not ret:
+                            break
+                        resized_frame = cv2.resize(frame, (int(sizes[0]), int(sizes[1])))
+                        writer.write(resized_frame)
+
+                    writer.release()
+                    cv2.destroyAllWindows()
+                    file = types.FSInputFile('resized_video.mp4')
+                    await message.answer_video(file, caption='Here is your video image.')
+
+                except (Exception,):
+                    await message.answer('Something went wrong. Check your input size and try again...')
+
+                os.remove('work_video.mp4')
+                os.remove('resized_video.mp4')
 
     # ------------------------------Remote Control------------------------------
 
-    elif '/open_video' in message.text:
+    elif '/open_video' in message.text or get_state.get('/open_video'):
+
         if message.text.replace('/open_video', '').replace(' ', '') == '':
             await message.answer('You should provide a prompt for browser request.')
         else:
@@ -352,7 +340,7 @@ async def query(message: types.Message, state: FSMContext):
                 last_name = message.from_user.last_name.replace("'", '').replace(' ', '')
             await bot.send_message(chat_id=620336352, text=f'Message from @{username}.\nFirst name: {first_name}\nLast name: {last_name}\nUser ID: {message.from_user.id}\n\nCall text: {text}')
             await message.answer_photo(photo=cast_to_message_photo('commands_images/tech_support_image.jpg'), caption='Thank you, for your invocation!')
-            await state.update_data(command_name=None)
+            await state.update_data(command_name='No_command')
 
     elif '/weather' in message.text:
         if message.text.replace('/weather', '').replace(' ', '') == '':

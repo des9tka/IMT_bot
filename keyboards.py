@@ -73,4 +73,11 @@ volume_choice_kb = InlineKeyboardMarkup(
     ]
 )
 
-exit_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, keyboard=[[KeyboardButton(text='EXIT')]], one_time_keyboard=True, selective=True)
+image_quality_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text='Better quality', callback_data='image_better_quality')],
+        [InlineKeyboardButton(text='Worse quality', callback_data='image_worse_quality')],
+    ]
+)
+
+exit_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, keyboard=[[KeyboardButton(text='Exit')]], one_time_keyboard=True, selective=True)

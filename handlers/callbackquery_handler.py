@@ -1,13 +1,15 @@
+import os
 import time
 
 from aiogram import Router, types
 from aiogram.fsm.context import FSMContext
 
 import keyboards as kb
+from config import bot
 from filters import AdminFilter
 from state import BotState
 from utils import master_volume_up, master_volume_down, master_volume_mute_unmute, master_volume_max_min, sessions_audio_kb, app_volume_up, app_volume_down, app_volume_max_min, \
-    app_volume_mute_unmute, close_app
+    app_volume_mute_unmute
 
 router_callback_query_handler = Router()
 
@@ -86,6 +88,24 @@ async def query(callback: types.CallbackQuery, state: FSMContext):
 
         await callback.message.answer(f'Change the {session.split(".")[0]} volume:', reply_markup=kb.volume_app_kb)
         await state.update_data(message_id=callback.message.message_id)
+
+    elif 'image_worse_quality' in callback.data:
+        file = types.FSInputFile('resized_image.jpg')
+        await callback.message.answer_photo(file, caption='Here is your resized image.')
+
+        os.remove('work_image.jpg')
+        os.remove('resized_image.jpg')
+        await state.update_data(command_name='No_command')
+        await state.update_data(subject=None)
+
+    elif 'image_better_quality' in callback.data:
+        file = types.FSInputFile('resized_image.jpg')
+        await bot.send_document(chat_id=callback.message.chat.id, document=file)
+
+        os.remove('work_image.jpg')
+        os.remove('resized_image.jpg')
+        await state.update_data(command_name='No_command')
+        await state.update_data(subject=None)
 
     # elif 'image_size_kb' in callback.data:
     #     if '1' in callback.data:
