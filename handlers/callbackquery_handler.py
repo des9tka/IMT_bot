@@ -90,22 +90,42 @@ async def query(callback: types.CallbackQuery, state: FSMContext):
         await state.update_data(message_id=callback.message.message_id)
 
     elif 'image_worse_quality' in callback.data:
-        file = types.FSInputFile('resized_image.jpg')
-        await callback.message.answer_photo(file, caption='Here is your resized image.')
+        if get_state.get('subject') == '/resize':
+            file = types.FSInputFile('help_image.jpg')
+            await callback.message.answer_photo(file, caption='Here is your resized image.')
 
-        os.remove('work_image.jpg')
-        os.remove('resized_image.jpg')
-        await state.update_data(command_name='No_command')
-        await state.update_data(subject=None)
+            os.remove('work_image.jpg')
+            os.remove('help_image.jpg')
+            await state.update_data(command_name='No_command')
+            await state.update_data(subject=None)
+
+        elif get_state.get('subject') == '/blur':
+            file = types.FSInputFile('blurred_image.jpg')
+            await callback.message.answer_photo(file, caption='Here is your blured image.')
+
+            os.remove('work_image.jpg')
+            os.remove('blurred_image.jpg')
+            await state.update_data(command_name='No_command')
+            await state.update_data(subject=None)
 
     elif 'image_better_quality' in callback.data:
-        file = types.FSInputFile('resized_image.jpg')
-        await bot.send_document(chat_id=callback.message.chat.id, document=file)
+        if get_state.get('subject') == '/resize':
+            file = types.FSInputFile('help_image.jpg')
+            await bot.send_document(chat_id=callback.message.chat.id, document=file)
 
-        os.remove('work_image.jpg')
-        os.remove('resized_image.jpg')
-        await state.update_data(command_name='No_command')
-        await state.update_data(subject=None)
+            os.remove('work_image.jpg')
+            os.remove('help_image.jpg')
+            await state.update_data(command_name='No_command')
+            await state.update_data(subject=None)
+
+        elif get_state.get('subject') == '/blur':
+            file = types.FSInputFile('blurred_image.jpg')
+            await bot.send_document(chat_id=callback.message.chat.id, document=file)
+
+            os.remove('work_image.jpg')
+            os.remove('blurred_image.jpg')
+            await state.update_data(command_name='No_command')
+            await state.update_data(subject=None)
 
     # elif 'image_size_kb' in callback.data:
     #     if '1' in callback.data:

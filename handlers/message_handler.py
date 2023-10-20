@@ -10,12 +10,13 @@ import cv2
 import keyboard
 import numpy as np
 import pyautogui
+from PIL import Image, ImageFilter
 from PIL import ImageGrab
 from aiogram import types, F, Router
 from aiogram.fsm.context import FSMContext
 
 import keyboards as kb
-from config import bot
+from config import bot, help_message
 from filters import AdminFilter
 from state import BotState
 from state import state_setup
@@ -77,8 +78,44 @@ async def query(message: types.Message, state: FSMContext):
     elif '/generate_img' in message.text:
         await message.answer('Image generation in developing...')
 
-    # elif get_state.get('command_name') == '/voice':
-    #     pass
+    elif get_state.get('command_name') == '/voice':
+        transcription = get_state.get('subject')
+
+        if transcription and message.text == '/voice_transcription':
+            await message.answer(f'Transcription: {transcription}')
+            await state.update_data(command_name='No_command')
+            await state.update_data(subject=None)
+
+            try:
+                os.remove('message_audio.ogg')
+                os.remove('Voice assistant reply.')
+            except (Exception,):
+                print('Details: All clear.')
+
+        if transcription and message.text == '/voice_ai':
+            try:
+                await message.reply(f'You: {transcription}')
+                reply = get_answer(transcription)
+                await message.answer(f'AI: {reply}')
+
+                if get_state.get('voice_assistant') == 'ON':
+                    file = types.FSInputFile('Voice assistant reply.')
+                    text_to_speach(reply, get_state.get('language'))
+                    await bot.send_audio(chat_id=message.from_user.id, audio=file)
+
+                    os.remove('Voice assistant reply.')
+
+                await state.update_data(command_name='No_command')
+                await state.update_data(subject=None)
+
+            except (Exception,) as e:
+                await message.answer(f'Something went wrong, check yor input language or input query and try again.\nMore details: {str(e)}')
+
+                try:
+                    os.remove('message_audio.ogg')
+                    os.remove('Voice assistant reply.')
+                except (Exception,):
+                    print('Details: All clear.')
 
     elif get_state.get('command_name') and '/photo' in get_state.get('command_name'):
 
@@ -125,11 +162,43 @@ async def query(message: types.Message, state: FSMContext):
                 else:
                     try:
                         resized_img = cv2.resize(img, (int(sizes[0]), int(sizes[1])))
-                        cv2.imwrite('resized_image.jpg', resized_img)
+                        cv2.imwrite('help_image.jpg', resized_img)
+                        await state.update_data(subject='/resize')
                         await message.answer('Choose the quality of image:', reply_markup=kb.image_quality_kb)
 
                     except (Exception,):
                         await message.answer('Something went wrong. Check your input size and try again...')
+
+        elif message.text.startswith('/image_blur') or '/image_blur' in get_state.get('command_name'):
+            blur = None
+            if '/image_blur' in message.text and message.text.replace('/image_blur', '').replace(' ', '') == '':
+                await state.update_data(command_name='/photo/image_blur')
+                await message.answer('Provide a blur value (1-100) for new image:', reply_markup=kb.exit_keyboard)
+
+            elif '/image_blur' in message.text and message.text.replace('/image_blur', '').replace(' ', '') != '':
+                try:
+                    blur = int(message.text.replace('/image_blur', '').replace(' ', ''))
+                except (Exception,):
+                    await message.answer('Something went wrong. Check your input blur value and try again...')
+
+            elif get_state.get('command_name') == '/photo/image_blur':
+                try:
+                    blur = int(message.text)
+
+                    if not 1 <= blur <= 100:
+                        await message.answer('Invalid blur value input.')
+                        blur = None
+                except (Exception,):
+                    await message.answer(f'Something went wrong. Check your input blur value and try again...')
+
+            if blur:
+                work_image = Image.open('work_image.jpg')
+
+                blured_image = work_image.filter(ImageFilter.GaussianBlur(blur))
+                blured_image.save('blurred_image.jpg')
+
+                await state.update_data(subject='/blur')
+                await message.answer('Choose the quality of image:', reply_markup=kb.image_quality_kb)
 
         elif message.text.startswith('/image_id'):
             await message.answer(f'Your image id: \n{get_state.get("image")}')
@@ -202,7 +271,8 @@ async def query(message: types.Message, state: FSMContext):
                     writer.release()
                     cv2.destroyAllWindows()
                     file = types.FSInputFile('resized_video.mp4')
-                    await message.answer_video(file, caption='Here is your video image.')
+                    await message.answer_video(file, caption='Here is your resized video.')
+                    await state.update_data(command_name='No_command')
 
                 except (Exception,):
                     await message.answer('Something went wrong. Check your input size and try again...')
@@ -301,6 +371,8 @@ async def query(message: types.Message, state: FSMContext):
 
     elif '/volume' in message.text:
         if message.text.replace('/volume', '').replace(' ', '') == '':
+            file = types.FSInputFile('commands_images/volume_image.jpg')
+            await message.answer_photo(photo=file)
             await message.answer('Which volume:', reply_markup=kb.volume_choice_kb)
         else:
             try:
@@ -372,41 +444,13 @@ async def query(message: types.Message, state: FSMContext):
                                      )
 
     elif message.text == '/help':
-        await message.answer('Here some commands to use:'
-                             '\n\n'
-                             '<-----AI----->'
-                             '\n- /ai + prompt (Prompt request to AI).'
-                             '\n- /img + prompt (Generate image with AI).'
-                             '\n- Voice message (Voice request to AI).'
-                             '\n- Photo message + command + optional prompt (Commands:\n• /image_ai + prompt;\n• /image_resize + "width"x"high";\n• /image_id.'
-                             '\n- Video (Capturing video by AI).'
-                             '\n\n'
-                             '<-----Remote Control----->'
-                             '\n- /open_video + name/url (Find video in YouTube).'
-                             '\n- /open_in_browser + prompt (Search info in browser).'
-                             '\n- /screenshot + optional number quality (Qualities:\n• Nothing/1 (Screenshot with compression).\n• 2 (Screenshot in stock quality)).'
-                             '\n- /open + app name (Open an app, should be global available).'
-                             '\n- /close + app name (Close an app, should be global available).'
-                             '\n- /key + hot key/keys (Remote keyboard input).'
-                             '\n- /volume + optional value (Change value of volume, 0-100).'
-                             '\n\n'
-                             '<-----Additional----->'
-                             '\n- /start (Start bot).'
-                             '\n- /tech_support + query (Get in touch with our team).'
-                             '\n- /weather + city (Get weather info to your city).'
-                             '\n- /help (Watch list of all commands).'
-                             '\n- /info (Useful info and F&Q).'
-                             '\n\n'
-                             '<-----Settings----->'
-                             '\n- /sett (All settings).'
-                             '\n- /comm_sett (Settings by commands).'
-                             '\n- /voice_ass (Switch voice assistant reply mode, default `OFF`).'
-                             '\n- /lang (Switch input/output language, default `Ru`).'
-                             '\n- /task_manager (Watch list of PC tasks).'
-                             '\n- /id (Find out your id).'
-                             )
+        file = types.FSInputFile('commands_images/help_image.jpg')
+        await message.answer_photo(photo=file)
+        await message.answer(help_message)
 
     elif message.text == '/info':
+        file = types.FSInputFile('commands_images/info_image.jpg')
+        await message.answer_photo(photo=file)
         await message.answer('Assistant AiBot_IMT was created by using Bard AI.')
         await message.answer('Info in developing...')
 
@@ -422,12 +466,16 @@ async def query(message: types.Message, state: FSMContext):
 
     # ------------------------------Settings------------------------------
 
-    elif '/sett' in message.text:
+    elif '/settings' in message.text:
+        file = types.FSInputFile('commands_images/settings_image.jpg')
+        await message.answer_photo(photo=file)
         await message.answer('---SETTINGS---')
         await message.answer(f'Language --> `{get_state.get("language")}`', reply_markup=kb.language_kb)
         await message.answer(f'Voice assistant --> `{get_state.get("voice_assistant")}`', reply_markup=kb.voice_assistant_kb)
 
-    elif '/comm_sett' in message.text:
+    elif '/command_settings' in message.text:
+        file = types.FSInputFile('commands_images/settings_image.jpg')
+        await message.answer_photo(photo=file)
         await message.answer('Settings:\n- /language\n- /voice_assistant')
 
     elif message.text == '/voice_ass':
