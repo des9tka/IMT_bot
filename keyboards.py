@@ -1,4 +1,5 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
+from pycaw.utils import AudioUtilities
 
 audio_session = None
 
@@ -79,5 +80,50 @@ image_quality_kb = InlineKeyboardMarkup(
         [InlineKeyboardButton(text='Worse quality', callback_data='image_worse_quality')],
     ]
 )
+
+browser_choice_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text='Chrome', callback_data='browser_choice_chrome')],
+        [InlineKeyboardButton(text='Opera', callback_data='browser_choice_opera')],
+        [InlineKeyboardButton(text='Edge', callback_data='browser_choice_edge')],
+        [InlineKeyboardButton(text='Firefox', callback_data='browser_choice_firefox')],
+    ]
+)
+
+video_platform_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text='YouTube', callback_data='video_platform_youtube')],
+        [InlineKeyboardButton(text='TikTok', callback_data='video_platform_tiktok')],
+        [InlineKeyboardButton(text='Instagram', callback_data='video_platform_instagram')],
+    ]
+)
+
+
+def sessions_audio_kb():
+    keyboard = []
+    sessions = AudioUtilities.GetAllSessions()
+    for session in sessions:
+        if session.Process:
+            name = session.Process.name().split('.')[0]
+            keyboard.append([InlineKeyboardButton(text=f'{name}', callback_data=f'session_{session.Process.name()}')])
+
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def youtube_video_kb(video_info):
+    keyboard = []
+    used_stream = []
+
+    for stream in video_info.streams.filter(progressive=True):
+        if stream.resolution:
+            used_stream.append(stream.itag)
+            keyboard.append([InlineKeyboardButton(text=f'{stream.mime_type} - {stream.resolution} 🔊', callback_data=f'download_youtube_{stream.itag}')])
+
+    for stream in video_info.streams:
+        if stream.resolution and stream.itag not in used_stream:
+            keyboard.append([InlineKeyboardButton(text=f'{stream.mime_type} - {stream.resolution} 🔇', callback_data=f'download_youtube_{stream.itag}')])
+
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
 
 exit_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, keyboard=[[KeyboardButton(text='Exit')]], one_time_keyboard=True, selective=True)

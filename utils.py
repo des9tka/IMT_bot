@@ -3,17 +3,18 @@ import datetime
 import subprocess
 import time
 from ctypes import cast, POINTER
-
 import gtts
 import psutil
 import pyautogui
 import requests
 from aiogram import types
 from aiogram.fsm.context import FSMContext
-from aiogram.types import InlineKeyboardButton
 from bardapi import Bard
 from comtypes import CLSCTX_ALL
 from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume, ISimpleAudioVolume
+from bs4 import BeautifulSoup
+from urllib.request import urlopen
+import instascrape
 
 from config import BARD_TOKEN, OPEN_WEATHER_TOKEN
 
@@ -25,17 +26,6 @@ volume = cast(interface, POINTER(IAudioEndpointVolume))
 def cast_to_message_photo(image_path):
     image = types.FSInputFile(image_path)
     return image
-
-
-def sessions_audio_kb():
-    keyboard = []
-    sessions = AudioUtilities.GetAllSessions()
-    for session in sessions:
-        if session.Process:
-            name = session.Process.name().split('.')[0]
-            keyboard.append([InlineKeyboardButton(text=f'{name}', callback_data=f'session_{session.Process.name()}')])
-
-    return types.InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
 def master_volume_up():
@@ -148,17 +138,23 @@ def close_app(app):
 
 
 def open_app(app):
-    pyautogui.hotkey("win")
-    time.sleep(1)
-    pyautogui.write(app)
-    time.sleep(1)
-    pyautogui.press("enter")
-    time.sleep(5)
-    processes = psutil.process_iter()
-    for process in processes:
-        if app.lower() in process.name():
-            return f'{app.capitalize()} was successfully open.'
-    return f'{app.capitalize()} wasnt find, not global available, or has wrong name input (You can use /task_manager for listing all tasks).'
+    opened = False
+
+    windows = pyautogui.getWindowsWithTitle(app)
+
+    for window in windows:
+        if app.lower() in window.title.lower():
+            window.activate()
+            window.maximize()
+            opened = True
+
+    if not opened:
+        pyautogui.hotkey("win")
+        time.sleep(1)
+        pyautogui.write(app)
+        time.sleep(1)
+        pyautogui.press("enter")
+        time.sleep(3)
 
 
 def get_answer(query):
@@ -216,33 +212,6 @@ def get_weather(city):
     return res_weather
 
 
-# def generate_image(prompt, num_image=1, size='512x512', output_format='url'):
-#     """
-#     params:
-#         prompt (str):
-#         num_image (int):
-#         size (str):
-#         output_format (str):
-#     """
-#     try:
-#         images = []
-#         response = openai.Image.create(
-#             prompt=prompt,
-#             n=num_image,
-#             size=size,
-#             response_format=output_format
-#         )
-#         if output_format == 'url':
-#             for image in response['data']:
-#                 images.append(image.url)
-#         elif output_format == 'b64_json':
-#             for image in response['data']:
-#                 images.append(image.b64_json)
-#         return {'created': datetime.datetime.fromtimestamp(response['created']), 'images': images}
-#     except InvalidRequestError as e:
-#         print(e)
-
-
 def text_to_speach(text, language='ru-RU'):
     language = language.split('-')
     tts = gtts.gTTS(text=text, lang=language[0])
@@ -265,7 +234,194 @@ def convert_video_to_mp3(input_video, output_audio):
     except subprocess.CalledProcessError as e:
         raise Exception('Converting failed.')
 
-# def format_answer(answer):
-#     answer = answer.replace('\n', ' ')
-#     answer = answer.replace('*', '')
-#     return answer
+
+async def open_video_via_browser(browser, query):
+    open_app(browser)
+    pyautogui.hotkey('ctrl', 't')
+    time.sleep(1)
+
+    if query.startswith('https:'):
+        pyautogui.write(query)
+    else:
+        pyautogui.write(f'https://www.youtube.com/search?q={query}')
+
+    time.sleep(1)
+    pyautogui.press('enter')
+
+    time.sleep(2)
+    return f'"{query}" video was successfully opened through {browser} opened.'
+
+
+async def search_via_browser(browser, query):
+    pyautogui.hotkey('ctrl', 't')
+    time.sleep(1)
+    pyautogui.write(query)
+    time.sleep(1)
+    pyautogui.press('enter')
+    time.sleep(2)
+    return f'"{query}" was successfully opened {browser} opened.'
+
+
+async def keyboard_write(message):
+    query_list = message.text.lower().replace('/key ', '').split(' ')
+    keys = list(filter(is_not_empty, query_list))
+    print(keys)
+    print(len(keys))
+    print(len(keys[0]))
+
+    if keys[0].lower() == 'exit':
+        pass
+
+    elif len(keys) == 1 and keys[0] in ['ctrl', 'space', 'shift', 'alt', 'tab', 'win', 'capslock', 'enter', 'backspace']:
+        print(1)
+        key = keys[0]
+        pyautogui.press(key)
+
+    elif len(keys) == 1 and keys[0] not in ['ctrl', 'space', 'shift', 'alt', 'tab', 'win', 'capslock', 'enter', 'backspace']:
+        print(2)
+        pyautogui.write(keys[0])
+
+    elif len(keys) == 2 and keys[0] in ['ctrl', 'space', 'shift', 'alt', 'tab', 'win', 'capslock', 'enter', 'backspace']:
+        print(3)
+        key1 = keys[0]
+        key2 = keys[1]
+        pyautogui.hotkey(key1, key2)
+
+    elif len(keys) == 2 and keys[0] in ['ctrl', 'space', 'shift', 'alt', 'tab', 'win', 'capslock', 'enter', 'backspace']:
+        print(4)
+        key1 = keys[0]
+        key2 = keys[1]
+        pyautogui.hotkey(key1, key2)
+
+    elif len(keys) >= 2 and keys[0] not in ['ctrl', 'space', 'shift', 'alt', 'tab', 'win', 'capslock', 'enter', 'backspace']:
+        print(5)
+        pyautogui.write(message.text.lower().replace('/key ', ''))
+
+    elif len(keys) == 3 and keys[0] in ['ctrl', 'space', 'shift', 'alt', 'tab', 'win', 'capslock', 'enter', 'backspace', 'delete']:
+        print(6)
+        key1 = keys[0]
+        key2 = keys[1]
+        key3 = keys[2]
+        pyautogui.hotkey(key1, key2, key3)
+
+    else:
+        await message.answer('Something went wrong, input keys and try again.')
+
+
+def download_video_from_tiktok(link):
+    cookies = {
+        '_gid': 'GA1.2.1221201842.1698218485',
+        '_gat_UA-3524196-6': '1',
+        '_ga': 'GA1.2.1056017198.1696323883',
+        '_ga_ZSF3D6YSLC': 'GS1.1.1698218484.2.1.1698218534.0.0.0',
+    }
+
+    headers = {
+        'authority': 'ssstik.io',
+        'accept': '*/*',
+        'accept-language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+        'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        # 'cookie': '_gid=GA1.2.1221201842.1698218485; _gat_UA-3524196-6=1; _ga=GA1.2.1056017198.1696323883; _ga_ZSF3D6YSLC=GS1.1.1698218484.2.1.1698218534.0.0.0',
+        'hx-current-url': 'https://ssstik.io/en',
+        'hx-request': 'true',
+        'hx-target': 'target',
+        'hx-trigger': '_gcaptcha_pt',
+        'origin': 'https://ssstik.io',
+        'referer': 'https://ssstik.io/en',
+        'sec-ch-ua': '"Chromium";v="116", "Not)A;Brand";v="24", "Opera GX";v="102"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-origin',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36 OPR/102.0.0.0',
+    }
+
+    params = {
+        'url': 'dl',
+    }
+
+    data = {
+        'id': link,
+        'locale': 'en',
+        'tt': 'WHB4dFhl',
+    }
+
+    response = requests.post('https://ssstik.io/abc', params=params, cookies=cookies, headers=headers, data=data)
+    download_soup = BeautifulSoup(response.text, 'html.parser')
+    download_link = download_soup.a['href']
+
+    mp4_file = urlopen(download_link)
+
+    with open('tiktok_video.mp4', 'wb') as file:
+        while True:
+            data = mp4_file.read(4096)
+            if data:
+                file.write(data)
+            else:
+                break
+    return download_link
+
+
+def download_from_inst(link):
+    cookies = {
+        'random_n': 'eyJpdiI6InV1MzgvRUhpeUNxUkwzOXhnKzZxVlE9PSIsInZhbHVlIjoiKzBUMy9VZCtjdUozV2Q1bUNPY0ZPbHk4MnhYOWJXaUFoZkQ1dGhVQ0lJaEZDNVhvSkY1RENxMjNyRDBjRmk5YiIsIm1hYyI6IjUxZTU4ZTFhZjI3OGZkMzE0MTRkOWUzZTM4MzIxNGYxZDc0NmY2NWRjNzNmNGEzZjM1YTgyN2I4YTRiNWM3NzMiLCJ0YWciOiIifQ%3D%3D',
+        'SLG_G_WPT_TO': 'ru',
+        'SLG_GWPT_Show_Hide_tmp': '1',
+        'SLG_wptGlobTipTmp': '1',
+        'XSRF-TOKEN': 'eyJpdiI6IjFxREZjOVpoNFZ3aXdkS29seWw3SEE9PSIsInZhbHVlIjoiQ0ZVdUMwV1RXeVkxWDFCYjJ0bjlpUUU3U2xRaUNXS1RjeUtJbEtBdXhiKy93T1llMkhnemxUU3R3RFIrM09jNkR3WDFOTHdjQnZFTjJpTUNGQzJtMkkvRW4zMlo5bUdvcklFQ2Z6ZmhpUnFFUUxJekg1RWtzVTNZOUIwdXpOZzEiLCJtYWMiOiIxZGI2YzY5MTE4ZTJkMmRhMzc5MzU3OWJhZWVlOTc1MDkxZWE1ZTYyNTcxMDI0NjU5MDU2NjY4NWQxZTkzNTk5IiwidGFnIjoiIn0%3D',
+        'sssinstagram_session': 'eyJpdiI6Ikp6aVE4T0hLaXF0anNpMzdtQk12L0E9PSIsInZhbHVlIjoicFNIMmoreDA0TDl1WWYzQlFyNVM5WGViK0dUQnJaZUg5NklFeTZhQWhGb3RNbjZWSER1ZFcrcHBvYWJVMFJnZk95aDFlWm56bFJsbzN0RGhkWUpSVURGVkUrOTVOelpJODBIWHg3QlFjdHo0dW90VTdyMW1oV3RTWjUzdmN3c1QiLCJtYWMiOiI0NWJjYTJiYzgyODQ2OWUxNjA5ODBmNTg0NWMxY2IyNGQzODk2ZTIzNmM0NDY3ODFhMTE2ZTRjYjkwNmM1NThlIiwidGFnIjoiIn0%3D',
+    }
+
+    headers = {
+        'authority': 'sssinstagram.com',
+        'accept': 'application/json, text/plain, */*',
+        'accept-language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+        'content-type': 'application/json;charset=UTF-8',
+        # 'cookie': 'random_n=eyJpdiI6InV1MzgvRUhpeUNxUkwzOXhnKzZxVlE9PSIsInZhbHVlIjoiKzBUMy9VZCtjdUozV2Q1bUNPY0ZPbHk4MnhYOWJXaUFoZkQ1dGhVQ0lJaEZDNVhvSkY1RENxMjNyRDBjRmk5YiIsIm1hYyI6IjUxZTU4ZTFhZjI3OGZkMzE0MTRkOWUzZTM4MzIxNGYxZDc0NmY2NWRjNzNmNGEzZjM1YTgyN2I4YTRiNWM3NzMiLCJ0YWciOiIifQ%3D%3D; SLG_G_WPT_TO=ru; SLG_GWPT_Show_Hide_tmp=1; SLG_wptGlobTipTmp=1; XSRF-TOKEN=eyJpdiI6IjFxREZjOVpoNFZ3aXdkS29seWw3SEE9PSIsInZhbHVlIjoiQ0ZVdUMwV1RXeVkxWDFCYjJ0bjlpUUU3U2xRaUNXS1RjeUtJbEtBdXhiKy93T1llMkhnemxUU3R3RFIrM09jNkR3WDFOTHdjQnZFTjJpTUNGQzJtMkkvRW4zMlo5bUdvcklFQ2Z6ZmhpUnFFUUxJekg1RWtzVTNZOUIwdXpOZzEiLCJtYWMiOiIxZGI2YzY5MTE4ZTJkMmRhMzc5MzU3OWJhZWVlOTc1MDkxZWE1ZTYyNTcxMDI0NjU5MDU2NjY4NWQxZTkzNTk5IiwidGFnIjoiIn0%3D; sssinstagram_session=eyJpdiI6Ikp6aVE4T0hLaXF0anNpMzdtQk12L0E9PSIsInZhbHVlIjoicFNIMmoreDA0TDl1WWYzQlFyNVM5WGViK0dUQnJaZUg5NklFeTZhQWhGb3RNbjZWSER1ZFcrcHBvYWJVMFJnZk95aDFlWm56bFJsbzN0RGhkWUpSVURGVkUrOTVOelpJODBIWHg3QlFjdHo0dW90VTdyMW1oV3RTWjUzdmN3c1QiLCJtYWMiOiI0NWJjYTJiYzgyODQ2OWUxNjA5ODBmNTg0NWMxY2IyNGQzODk2ZTIzNmM0NDY3ODFhMTE2ZTRjYjkwNmM1NThlIiwidGFnIjoiIn0%3D',
+        'origin': 'https://sssinstagram.com',
+        'sec-ch-ua': '"Opera";v="103", "Not;A=Brand";v="8", "Chromium";v="117"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-origin',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36 OPR/103.0.0.0',
+        'x-requested-with': 'XMLHttpRequest',
+        'x-xsrf-token': 'eyJpdiI6IjFxREZjOVpoNFZ3aXdkS29seWw3SEE9PSIsInZhbHVlIjoiQ0ZVdUMwV1RXeVkxWDFCYjJ0bjlpUUU3U2xRaUNXS1RjeUtJbEtBdXhiKy93T1llMkhnemxUU3R3RFIrM09jNkR3WDFOTHdjQnZFTjJpTUNGQzJtMkkvRW4zMlo5bUdvcklFQ2Z6ZmhpUnFFUUxJekg1RWtzVTNZOUIwdXpOZzEiLCJtYWMiOiIxZGI2YzY5MTE4ZTJkMmRhMzc5MzU3OWJhZWVlOTc1MDkxZWE1ZTYyNTcxMDI0NjU5MDU2NjY4NWQxZTkzNTk5IiwidGFnIjoiIn0=',
+    }
+
+    json_data = {
+        'link': link,
+        'token': '',
+    }
+
+    response = requests.post('https://sssinstagram.com/ru/r', cookies=cookies, headers=headers, json=json_data)
+    result = response.json()
+    link = None
+
+    if 'urlDownloadable' in response.text:
+        link = result['data']['items'][0]['urls'][0]['urlDownloadable']
+
+        response = requests.get(link)
+        if response.status_code == 200:
+            with open("inst_video.mp4", "wb") as file:
+                file.write(response.content)
+
+        else:
+            raise Exception(f"Failed to download video: {response.status_code}")
+
+    elif 'pictureUrl' in response.text:
+        link = result['data']['items'][0]['pictureUrl']
+
+        response = requests.get(link)
+        if response.status_code == 200:
+            with open("inst_image.jpg", "wb") as file:
+                file.write(response.content)
+        else:
+            raise Exception(f"Failed to download video: {response.status_code}")
+
+    else:
+        print('Downloading only for pictures and videos.')
+
+    return link

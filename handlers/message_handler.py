@@ -3,7 +3,6 @@ import datetime
 import os
 import subprocess
 import time
-import webbrowser
 from functools import partial
 
 import cv2
@@ -14,19 +13,20 @@ from PIL import Image, ImageFilter
 from PIL import ImageGrab
 from aiogram import types, F, Router
 from aiogram.fsm.context import FSMContext
+from pytube import YouTube
 
 import keyboards as kb
 from config import bot, help_message
 from filters import AdminFilter
 from state import BotState
 from state import state_setup
-from utils import get_answer, text_to_speach, open_app, close_app, get_weather, cast_to_message_photo, is_not_empty, set_master_volume, convert_video_to_mp3
+from utils import get_answer, text_to_speach, open_app, close_app, get_weather, cast_to_message_photo, is_not_empty, set_master_volume, convert_video_to_mp3, keyboard_write, download_video_from_tiktok, download_from_inst
 
 router_message_handler = Router()
 
 
 @router_message_handler.message(AdminFilter(), F.text)
-async def query(message: types.Message, state: FSMContext):
+async def message_query(message: types.Message, state: FSMContext):
     # ------------------------------Tech------------------------------
 
     await state.set_state(BotState)
@@ -109,7 +109,7 @@ async def query(message: types.Message, state: FSMContext):
                 await state.update_data(subject=None)
 
             except (Exception,) as e:
-                await message.answer(f'Something went wrong, check yor input language or input query and try again.\nMore details: {str(e)}')
+                await message.answer(f'Something went wrong, check yor input language or input query and try again.')
 
                 try:
                     os.remove('message_audio.ogg')
@@ -167,7 +167,7 @@ async def query(message: types.Message, state: FSMContext):
                         await message.answer('Choose the quality of image:', reply_markup=kb.image_quality_kb)
 
                     except (Exception,):
-                        await message.answer('Something went wrong. Check your input size and try again...')
+                        await message.answer('Something went wrong. Check your input size and try again.')
 
         elif message.text.startswith('/image_blur') or '/image_blur' in get_state.get('command_name'):
             blur = None
@@ -179,7 +179,7 @@ async def query(message: types.Message, state: FSMContext):
                 try:
                     blur = int(message.text.replace('/image_blur', '').replace(' ', ''))
                 except (Exception,):
-                    await message.answer('Something went wrong. Check your input blur value and try again...')
+                    await message.answer('Something went wrong. Check your input blur value and try again.')
 
             elif get_state.get('command_name') == '/photo/image_blur':
                 try:
@@ -189,7 +189,7 @@ async def query(message: types.Message, state: FSMContext):
                         await message.answer('Invalid blur value input.')
                         blur = None
                 except (Exception,):
-                    await message.answer(f'Something went wrong. Check your input blur value and try again...')
+                    await message.answer(f'Something went wrong. Check your input blur value and try again.')
 
             if blur:
                 work_image = Image.open('work_image.jpg')
@@ -275,59 +275,80 @@ async def query(message: types.Message, state: FSMContext):
                     await state.update_data(command_name='No_command')
 
                 except (Exception,):
-                    await message.answer('Something went wrong. Check your input size and try again...')
+                    await message.answer('Something went wrong. Check your input size and try again.')
 
-                os.remove('work_video.mp4')
                 os.remove('resized_video.mp4')
+                os.remove('work_video.mp4')
 
     # ------------------------------Remote Control------------------------------
 
-    elif '/open_video' in message.text or get_state.get('/open_video'):
+    elif '/open_video' in message.text or get_state.get('command_name') == '/open_video':
 
-        if message.text.replace('/open_video', '').replace(' ', '') == '':
-            await message.answer('You should provide a prompt for browser request.')
-        else:
-            user_request = message.text.split(' ', 1)[1]
+        if '/open_video' in message.text and message.text.replace('/open_video', '').replace(' ', '') == '':
+            await state.update_data(command_name='/open_video')
+            await message.answer('Provide a link or name of search video:', reply_markup=kb.exit_keyboard)
 
-            if user_request.startswith('https:'):
-                webbrowser.open(user_request)
-            else:
-                webbrowser.open(f'https://www.youtube.com/search?q={user_request}')
+        elif '/open_video' in message.text and message.text.replace('/open_in_browser', '').replace(' ', '') != '':
+            try:
+                user_request = message.text.replace('/open_video', '').replace(' ', '', 1)
 
-            time.sleep(3)
-            await message.answer(f'{user_request.capitalize()} video was successfully opened.')
+                await state.update_data(subject=user_request)
+                await message.answer(f'Open {user_request} through browser (use existed pc browser):', reply_markup=kb.browser_choice_kb)
 
-    elif '/open_in_browser' in message.text:
-        if message.text.replace('/open_in_browser', '').replace(' ', '') == '':
-            await message.answer('You should provide a prompt for browser request.')
-        else:
-            user_request = message.text.split(' ', 1)[1]
-            webbrowser.open(user_request)
+            except (Exception,):
+                await state.update_data(subject=None)
+                await message.answer('Something went wrong. Check yor input video name/url.')
 
-            time.sleep(3)
+        elif get_state.get('command_name') == '/open_video' and not message.text.lower().startswith('exit'):
+            await state.update_data(subject=message.text)
+            await message.answer(f'Open "{message.text}" through browser (use existed pc browser):', reply_markup=kb.browser_choice_kb)
+
+    elif '/open_in_browser' in message.text or get_state.get('command_name') == '/open_in_browser':
+        user_request = None
+
+        if '/open_in_browser' in message.text and message.text.replace('/open_in_browser', '').replace(' ', '') == '':
+            await state.update_data(command_name='/open_in_browser')
+            await message.answer('Provide a request for browser searching:', reply_markup=kb.exit_keyboard)
+
+        elif '/open_in_browser' in message.text and message.text.replace('/open_in_browser', '').replace(' ', '') != '':
+            try:
+                user_request = message.text.replace('/open_in_browser', '').split(' ', 1)
+
+                if len(user_request) > 2:
+                    raise Exception('Invalid arguments.')
+
+                else:
+                    user_request = user_request[1]
+            except (Exception,):
+                user_request = None
+                await message.answer('Something went wrong. Check yor input request.')
+
+        elif get_state.get('command_name') == '/open_in_browser' and not message.text.lower().startswith('exit'):
+            user_request = message.text
+
+        if user_request:
+            open_app('chrome')
+            pyautogui.hotkey('ctrl', 't')
+            keyboard.write(user_request)
+            keyboard.press('enter')
             await message.answer(f'{user_request.capitalize()} request was successfully opened.')
 
     elif '/screenshot' in message.text:
-        query = message.text.replace('/screenshot', ' ').split(' ')
+        try:
+            ImageGrab.grab = partial(ImageGrab.grab, all_screens=True)
 
-        ImageGrab.grab = partial(ImageGrab.grab, all_screens=True)
+            image = ImageGrab.grab()
+            np_img = np.array(image)
 
-        image = ImageGrab.grab()
-        np_img = np.array(image)
+            img = cv2.cvtColor(np_img, cv2.COLOR_BGR2RGB)
+            cv2.imwrite('screenshot.png', img)
 
-        img = cv2.cvtColor(np_img, cv2.COLOR_BGR2RGB)
-        cv2.imwrite('screenshot.png', img)
+            await state.update_data(subject='/screenshot')
 
-        screenshot = types.FSInputFile('screenshot.png')
+            await message.answer('Choose quality of screenshot:', reply_markup=kb.image_quality_kb)
 
-        if len(list(filter(is_not_empty, query))) == 0 or list(filter(is_not_empty, query))[0] == '1':
-            await bot.send_photo(chat_id=message.chat.id, photo=screenshot)
-        elif list(filter(is_not_empty, query))[0] == '2':
-            await bot.send_document(chat_id=message.chat.id, document=screenshot)
-        else:
-            await message.answer('Incorrect quality input value.')
-
-        os.remove('screenshot.png')
+        except (Exception,):
+            await message.answer('Something went wrong, try again.')
 
     elif '/open' in message.text:
         if message.text.replace('/open', '').replace(' ', '') == '':
@@ -340,34 +361,19 @@ async def query(message: types.Message, state: FSMContext):
     elif '/close' in message.text:
         if message.text.replace('/close', '').replace(' ', '') == '':
             await message.answer('You should provide an app name to close.')
-
         else:
             app = message.text.split(' ', 1)[1]
             await message.answer(close_app(app))
 
-    elif '/key' in message.text:
+    elif '/key' in message.text or get_state.get('command_name') == '/key':
         if message.text.replace('/key', '').replace(' ', '') == '':
-            await message.answer('You should provide a key.')
-        else:
-            query_list = message.text.lower().replace('/key ', '').split(' ')
-            keys = list(filter(is_not_empty, query_list))
-
-            if len(keys) == 1:
-                key = keys[0]
-                pyautogui.press(key)
-            elif len(keys) == 2:
-                key1 = keys[0]
-                key2 = keys[1]
-                pyautogui.hotkey(key1, key2)
-            elif len(keys) > 2 and keys[0] not in ['ctrl', 'space', 'shift', 'alt', 'tab', 'win', 'capslock', 'enter', 'backspace']:
-                keyboard.write(message.text.lower().replace('/key ', ''))
-            elif len(keys) == 3 and keys[0] in ['ctrl', 'space', 'shift', 'alt', 'tab', 'win', 'capslock', 'enter', 'backspace', 'delete']:
-                key1 = keys[0]
-                key2 = keys[1]
-                key3 = keys[2]
-                pyautogui.hotkey(key1, key2, key3)
-            else:
-                await message.answer('You should provide no more then 2 keys.')
+            await message.answer('Provide a values for keyboard writing (for exit type "Exit" or choose the command under):', reply_markup=kb.exit_keyboard)
+            await state.update_data(command_name='/key')
+        elif message.text.replace('/key', '').replace(' ', '') != '':
+            await keyboard_write(message)
+        elif get_state.get('command_name') == '/key':
+            while message.text != 'exit':
+                await keyboard_write(message)
 
     elif '/volume' in message.text:
         if message.text.replace('/volume', '').replace(' ', '') == '':
@@ -443,6 +449,67 @@ async def query(message: types.Message, state: FSMContext):
                                      f'\nAdditional info - {(response["description"]).capitalize()}.'
                                      )
 
+    elif message.text == '/download_video' or get_state.get('command_name') and '/download_video' in get_state.get('command_name'):
+        if not get_state.get('command_name') or '/download_video' not in get_state.get('command_name'):
+            await state.update_data(command_name='/download_video')
+            await message.answer('Which video platform should we use:', reply_markup=kb.video_platform_kb)
+
+        elif get_state.get('command_name') == '/download_video/video_platform_youtube' and message.text.lower() != 'exit':
+            try:
+                video_info = YouTube(message.text)
+                await state.update_data(subject=message.text)
+                await message.answer('All video quality and types. Choose one :', reply_markup=kb.youtube_video_kb(video_info))
+            except (Exception,):
+                await message.answer(f'Something went wrong, check yor input YouTube video url and try again.')
+
+        elif get_state.get('command_name') == '/download_video/video_platform_tiktok' and message.text.lower() != 'exit':
+            try:
+                link = download_video_from_tiktok(message.text)
+
+                if link and os.path.isfile('tiktok_video.mp4'):
+                    file = types.FSInputFile('tiktok_video.mp4')
+                    await message.answer_video(file, caption=f'Here is your video and extra link for downloading: {link}')
+                    os.remove('tiktok_video.mp4')
+                    await state.update_data(command_name='No_command')
+                    await state.update_data(subject=None)
+
+                elif link:
+                    await message.answer(f'Downloading failed, here is your link for downloading: {link}')
+
+                else:
+                    raise Exception('Details: downloading failed')
+
+            except (Exception,):
+                await message.answer('Something went wrong, check yor input TikTok video url and try again.')
+
+        elif get_state.get('command_name') == '/download_video/video_platform_instagram':
+            try:
+                link = download_from_inst(message.text)
+
+                if link and os.path.isfile('inst_image.jpg') or os.path.isfile('insta_video.mp4'):
+                    if os.path.isfile('inst_image.jpg'):
+                        file = types.FSInputFile('inst_image.jpg')
+                        await message.answer_photo(file, f'Here is photo video and extra link for downloading: {link}')
+                        os.remove('inst_image.jpg')
+
+                    elif os.path.isfile('inst_video.mp4'):
+                        file = types.FSInputFile('inst_video.mp4')
+                        await message.answer_video(file, f'Here is your video and extra link for downloading: {link}')
+                        os.remove('inst_video.mp4')
+
+                    elif link:
+                        await message.answer(f'Downloading failed, here is your link for downloading: {link}')
+
+                    else:
+                        raise Exception('Details: downloading failed')
+
+            except (Exception,):
+                await message.answer('Something went wrong, check yor input Instagram url and try again.')
+            await state.update_data(command_name='No_name')
+
+        elif not message.text.lower() == 'exit':
+            await message.answer('Unknown command for video downloading.')
+
     elif message.text == '/help':
         file = types.FSInputFile('commands_images/help_image.jpg')
         await message.answer_photo(photo=file)
@@ -498,6 +565,12 @@ async def query(message: types.Message, state: FSMContext):
 
     elif message.text == '/id':
         await message.answer(f'Your id: {message.from_user.id}')
+
+    elif '/test' in message.text:
+        if message.text.replace('/test', '').replace(' ', '') == '':
+            await message.answer('Provide a value.')
+        else:
+            open_app(message.text.replace('/test', '').replace(' ', ''))
 
     else:
         await message.answer('Sorry, didnt understand you, watch /help.')

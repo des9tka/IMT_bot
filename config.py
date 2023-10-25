@@ -37,9 +37,7 @@ help_message = '''Here some commands to use:
 <----------Remote Control---------->
 - /open_video + name/url (Find video in YouTube).
 - /open_in_browser + prompt (Search info in browser).
-
-- /screenshot + optional number quality (Qualities:\n• Nothing/1 (Screenshot with compression);\n• 2 (Screenshot in stock quality)).
-
+- /screenshot (Make a screenshot in best/worse quality).
 - /open + app name (Open an app, should be global available).
 - /close + app name (Close an app, should be global available).
 - /key + hot key/keys (Remote keyboard input).
@@ -50,6 +48,7 @@ help_message = '''Here some commands to use:
 - /start (Start bot).
 - /tech_support + query (Get in touch with our team).
 - /weather + city (Get weather info to your city).
+- /download_video (Download video from YT.TK.IN.).
 - /help (Watch list of all commands).
 - /info (Useful info and F&Q).
 
